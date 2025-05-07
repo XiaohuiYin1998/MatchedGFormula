@@ -51,11 +51,17 @@ intervention_model_star_coef <- c(0, 1, rnorm(p))
 #   censor_model_star_coef <- c(-1, 1, c(rnorm(p0), rep(0, p - p0)))
 #   outcome_model_star_coef <- c(-8, 2, c(rnorm(p0), rep(0, p - p0)))
 # }
-# Setting 5
-setup = 5
-if(setup == 5){
+# Setting 5 (~5%)
+# setup = 5
+# if(setup == 5){
+#   censor_model_star_coef <- c(-6, 1, rnorm(p))
+#   outcome_model_star_coef <- c(-6, 2, rnorm(p))
+# }
+# Setting 6 (~2-3%)
+setup = 6
+if(setup == 6){
   censor_model_star_coef <- c(-6, 1, rnorm(p))
-  outcome_model_star_coef <- c(-6, 2, rnorm(p))
+  outcome_model_star_coef <- c(-5, 2, rnorm(p))
 }
 
 K <- 6

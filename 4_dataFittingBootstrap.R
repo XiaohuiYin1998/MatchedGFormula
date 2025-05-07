@@ -22,7 +22,7 @@ cov_mintimes <- rep(1, length(covnames) + 1)
 histvars <- c(covnames, intervention_name)
 histvals <- 1
 
-nboot <- 100  # Set number of bootstrap replicates
+nboot <- 5  # Set number of bootstrap replicates
 boot_results <- vector("list", nboot)
 pb <- txtProgressBar(min = 1, max = nboot + 1, style = 3) 
 
@@ -46,12 +46,13 @@ if(itergform == 0 & matched == 0){
       mutate(id = new_id) %>%
       select(-old_id, -new_id)
     
+    dfboot <- as.data.table(dfboot)
     
     rst <- gform_noniter_complete(dfboot, K = K, time_name = time_name, id_name = id_name,
                                   outcome_name = outcome_name, ymodel = ymodel,
                                   outcome_mintime = 0, censor_name = censor_name,
                                   censor_model = censor_model, censor_mintime = 0,
-                                  intervention_name = intervention_name, intervention = rep(1, K),
+                                  intervention_name = intervention_name, intervention = rep(treatment, K),
                                   covnames = covnames, covtypes = covtypes, covmodels = covmodels,
                                   base_covnames = base_covnames, cov_mintimes = cov_mintimes,
                                   histvars = histvars, histvals = histvals, seed = seed_b)
@@ -85,12 +86,14 @@ if(itergform == 0 & matched == 1){
       mutate(id = new_id) %>%
       select(-old_id, -new_id)
     
-    rst <- gform_noniter_match(dfboot, K = K, J = 10,
+    dfboot <- as.data.table(dfboot)
+    
+    rst <- gform_noniter_match(dfboot, K = K, J = 5,
                                outcome_name = outcome_name, ymodel = ymodel,
                                outcome_mintime = 0, censor_name = censor_name, 
                                censor_model = censor_model, censor_mintime = 0, 
                                intervention_name = intervention_name,
-                               intervention = rep(1, K),
+                               intervention = rep(treatment, K),
                                covnames = covnames, covtypes = covtypes, covmodels = covmodels, 
                                base_covnames = base_covnames, cov_mintimes = cov_mintimes,
                                histvars = histvars, histvals = histvals,
@@ -125,12 +128,14 @@ if(itergform == 1 & matched == 0){
       mutate(id = new_id) %>%
       select(-old_id, -new_id)
     
+    dfboot <- as.data.table(dfboot)
+    
     rst <- gform_iter_complete(dfboot, K = K, 
                                id_name = 'id',
                                outcome_name = outcome_name, ymodel = ymodel,
                                outcome_mintime = 0, 
                                intervention_name = intervention_name,
-                               intervention = rep(1, K),
+                               intervention = rep(treatment, K),
                                cov_mintimes = cov_mintimes,
                                histvars = histvars, 
                                histvals = histvals,
@@ -165,12 +170,15 @@ if(itergform == 1 & matched == 1){
       mutate(id = new_id) %>%
       select(-old_id, -new_id)
     
-    rst <- gform_iter_match(dfboot, K = K, J = 10,
+    
+    dfboot <- as.data.table(dfboot)
+    
+    rst <- gform_iter_match(dfboot, K = K, J = 5,
                             outcome_name = outcome_name, ymodel = ymodel,
                             outcome_mintime = 0, 
                             base_covnames = base_covnames,
                             intervention_name = intervention_name,
-                            intervention = rep(1, K),
+                            intervention = rep(treatment, K),
                             histvars = histvars, 
                             histvals = histvals,
                             seed = seed_b)

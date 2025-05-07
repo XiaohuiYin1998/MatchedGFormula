@@ -15,7 +15,7 @@ treatment <- argDF$treatment[argID] # 1 for always treatment, 0 for never treatm
 
 
 myseed <- myseeds[dataID]
-set.seed(dataID)
+set.seed(myseed)
 
 min_count_Y <- 1
 while(min_count_Y < 5){
