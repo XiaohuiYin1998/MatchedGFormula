@@ -6,30 +6,58 @@ mhds <- c('alch', 'drug', 'sch', 'mdd', 'bipd', 'ptsd', 'anx')
 cmbds <- c('mi', 'chf', 'pvd', 'cevd', 'dementia', 'cpd', 'rheumd', 
            'pud', 'mld', 'diab', 'diabwc', 'hp', 'rend', 'canc', 
            'msld', 'metacanc', 'aids')
-covnames = c(mhds, cmbds)
-p <- length(covnames); p0 <- 3 ## set the first 3 covariates as active covariates
+covnames = c(mhds, cmbds)[1:10] # set 10 covariates
+
+# ## Sparse setups
+# p <- length(covnames); p0 <- 3 ## set the first 3 covariates as active covariates
+# set.seed(2024)
+# covmodels_star_coef_A <- rnorm(p)
+# outcome_model_star_coef_t <- 0
+# covmodels_star_coef <- matrix(0, nrow = p, ncol = p)
+# covmodels_star_coef[1:p0, 1:p0] <- rnorm(p0*p0)
+# intervention_model_star_coef <- c(0, 1, c(rnorm(p0), rep(0, p - p0)))
+
+## General setups
+p <- length(covnames)
 set.seed(2024)
 covmodels_star_coef_A <- rnorm(p)
 outcome_model_star_coef_t <- 0
-covmodels_star_coef <- matrix(0, nrow = p, ncol = p)
-covmodels_star_coef[1:p0, 1:p0] <- rnorm(p0*p0)
-intervention_model_star_coef <- c(0, 1, c(rnorm(p0), rep(0, p - p0)))
+covmodels_star_coef <- matrix(rnorm(p*p), nrow = p, ncol = p)
+intervention_model_star_coef <- c(0, 1, rnorm(p))
+
 ## Setting 1
-if(setup == 1){
-  censor_model_star_coef <- c(-1, 1, c(rnorm(p0), rep(0, p - p0)))
-  outcome_model_star_coef <- c(-6, 2, c(rnorm(p0), rep(0, p - p0)))
+# if(setup == 1){
+#   censor_model_star_coef <- c(-1, 1, c(rnorm(p0), rep(0, p - p0)))
+#   outcome_model_star_coef <- c(-6, 2, c(rnorm(p0), rep(0, p - p0)))
+# }
+# # Setting 2
+# setup = 2
+# if(setup == 2){
+#   # censor_model_star_coef <- c(-6, 1, c(rnorm(p0), rep(0, p - p0)))
+#   # outcome_model_star_coef <- c(-8, 2, c(rnorm(p0), rep(0, p - p0)))
+#   censor_model_star_coef <- c(-6, 1, rnorm(p))
+#   outcome_model_star_coef <- c(-8, 2, rnorm(p))
+# }
+# # ## Setting 3
+# setup = 3
+# if(setup == 3){
+#   # censor_model_star_coef <- c(-6, 1, c(rnorm(p0), rep(0, p - p0)))
+#   # outcome_model_star_coef <- c(-4, 2, c(rnorm(p0), rep(0, p - p0)))
+#   censor_model_star_coef <- c(-6, 1, rnorm(p))
+#   outcome_model_star_coef <- c(-4, 2, rnorm(p))
+# }
+# ## Setting 4
+# if(setup == 4){
+#   censor_model_star_coef <- c(-1, 1, c(rnorm(p0), rep(0, p - p0)))
+#   outcome_model_star_coef <- c(-8, 2, c(rnorm(p0), rep(0, p - p0)))
+# }
+# Setting 5
+setup = 5
+if(setup == 5){
+  censor_model_star_coef <- c(-6, 1, rnorm(p))
+  outcome_model_star_coef <- c(-6, 2, rnorm(p))
 }
 
-## Setting 2
-if(setup == 2){
-  censor_model_star_coef <- c(-6, 1, c(rnorm(p0), rep(0, p - p0)))
-  outcome_model_star_coef <- c(-8, 2, c(rnorm(p0), rep(0, p - p0)))
-}
-## Setting 3
-if(setup == 3){
-  censor_model_star_coef <- c(-6, 1, c(rnorm(p0), rep(0, p - p0)))
-  outcome_model_star_coef <- c(-4, 2, c(rnorm(p0), rep(0, p - p0)))
-}
 K <- 6
 va_simu_data <- function(i, K, 
                          covmodels_star_coef_A,
