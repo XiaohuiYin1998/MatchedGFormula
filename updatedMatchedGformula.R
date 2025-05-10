@@ -700,6 +700,12 @@ gform_iter_match <- function(obs_data, K, J, Js = NULL,
   match_data <- obs_data[, if (any(!is.na(Count) & Count != 0)) .SD, by = get(id_name)]
   match_data <- match_data[rep(1:.N, ifelse(is.na(Count), 1, Count))]
   
+for(k in 1:K){
+    if(sum(!is.na(match_data[match_data[[time_name]]== k-1, Count])) == 0){
+      match_data[["Count"]][match_data[[time_name]]== k-1] <- 1
+      match_data[["Weights"]][match_data[[time_name]]== k-1] <- 1
+    }
+  }
   end_time_data_preprocess <- Sys.time()
   
   start_time_model <- Sys.time()
