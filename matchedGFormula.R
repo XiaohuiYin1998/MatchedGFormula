@@ -519,13 +519,14 @@ gform_iter_complete_inner <- function(obs_data, K,
     tmpdf[, (intervention_name) := intervention[t+1]]
     tmpdf[tmpdf[[time_name]] == t, YPred := predict(yfit, tmpdf, type = 'response')]
     
-    obs_data[obs_data[[time_name]] == t - 1,
+    obs_data[obs_data[[time_name]] == t - 1 & obs_data[[outcome_name]] != 1,
              YPred := tmpdf$YPred[match(get(id_name), tmpdf[[id_name]])]]
     obs_data[obs_data[[time_name]] == t - 1 & obs_data[[outcome_name]] == 1, YPred := 1]
     mod_list_complete[[t+1]] <- yfit
   }
   return(list(risk = mean(tmpdf$YPred), mod_list = mod_list_complete))
 }
+
 gform_iter_complete <- function(obs_data, K, 
                                 time_name = 't0', id_name = 'id', 
                                 outcome_name, ymodel, outcome_mintime = 0, 
@@ -565,14 +566,17 @@ gform_iter_match_inner <- function(obs_data, K,
   mod_list_match <- list()
   t <- K-1
   obs_data[, YPred := as.numeric(NA)]
-  tmpdf <- obs_data[obs_data[[time_name]] == t & obs_data[[censor_name]] == 0]
+  # tmpdf <- obs_data[obs_data[[time_name]] == t & obs_data[[censor_name]] == 0]
+  tmpdf <- obs_data[obs_data[[time_name]] == t]
   tmpdf[, YPred := as.numeric(Y)]
+
   yfit <- glm(ymodel, weights = Weights, 
               data = tmpdf, 
               family = quasibinomial())
-  tmpdf <- obs_data[obs_data[[time_name]] == t]
+  # tmpdf <- obs_data[obs_data[[time_name]] == t]
   tmpdf[, (intervention_name) := intervention[t+1]]
   tmpdf[tmpdf[[time_name]] == t, YPred := predict_new_level(yfit, tmpdf, type = 'response')]
+  
   
   obs_data[obs_data[[time_name]] == t - 1,
            YPred := tmpdf$YPred[match(get(id_name), tmpdf[[id_name]])]]
@@ -586,11 +590,12 @@ gform_iter_match_inner <- function(obs_data, K,
   }
   
   for(t in (K-2):0){
-    tmpdf <- obs_data[obs_data[[time_name]] == t & obs_data[[censor_name]] == 0]
+    # tmpdf <- obs_data[obs_data[[time_name]] == t & obs_data[[censor_name]] == 0]
+    tmpdf <- obs_data[obs_data[[time_name]] == t]
     yfit <- glm(ymodel, weights = Weights, 
                 data = tmpdf, 
                 family = quasibinomial())
-    tmpdf <- obs_data[obs_data[[time_name]] == t]
+    # tmpdf <- obs_data[obs_data[[time_name]] == t]
     tmpdf[, (intervention_name) := intervention[t+1]]
     tmpdf[tmpdf[[time_name]] == t, YPred := predict_new_level(yfit, tmpdf, type = 'response')]
     
@@ -656,9 +661,14 @@ gform_iter_match <- function(obs_data, K, J, Js = NULL,
     dt_control_weights <- unique(dt_control_weights)
     
     obs_data[obs_data[[time_name]] == t, Weights := as.numeric(NA)]
-    obs_data[obs_data[[outcome_name]] == 1 & obs_data[[time_name]] == t, 
+    # obs_data[obs_data[[outcome_name]] == 1 & obs_data[[time_name]] == t, 
+    #          `:=`(Weights = weight_cases,
+    #               Count = 1)]
+    obs_data[(obs_data[[outcome_name]] == 1 | obs_data[[censor_name]] == 1) & 
+                obs_data[[time_name]] == t,
              `:=`(Weights = weight_cases,
                   Count = 1)]
+                  
     obs_data[(obs_data[[outcome_name]] == 0 | 
                 obs_data[[censor_name]] == 1) & obs_data[[time_name]] == t, 
              `:=`(Weights = dt_control_weights$Weights[match(get(id_name), dt_control_weights[['id']])], 
@@ -667,6 +677,12 @@ gform_iter_match <- function(obs_data, K, J, Js = NULL,
   match_data <- obs_data[, if (any(!is.na(Count) & Count != 0)) .SD, by = get(id_name)]
   match_data <- match_data[rep(1:.N, ifelse(is.na(Count), 1, Count))]
   
+    for(k in 1:K){
+    if(sum(!is.na(match_data[match_data[[time_name]]== k-1, Count])) == 0){
+      match_data[["Count"]][match_data[[time_name]]== k-1] <- 1
+      match_data[["Weights"]][match_data[[time_name]]== k-1] <- 1
+    }
+  }
   rst <- lapply(1:K, function(k){
     gform_iter_match_inner(obs_data = match_data, K = k, 
                            time_name = time_name, id_name = id_name,
