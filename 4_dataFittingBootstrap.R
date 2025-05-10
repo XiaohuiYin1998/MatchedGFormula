@@ -1,6 +1,29 @@
 library(dplyr)
 library(tidyr)
 source('updatedMatchedGformula.R')
+n <- 30000
+K <- 6
+setup <- 7
+source('0_regularizedParameterSetup.R')
+
+set.seed(2024)
+myseeds <- sample(1:1e5, size = 500)
+simuID <- Sys.getenv("SLURM_ARRAY_TASK_ID")
+simuID <- as.integer(simuID)
+if(is.na(simuID)){simuID <- 1}
+
+dataID <- floor((simuID -1)/ 8) + 1
+argID <- (simuID - 1) %% 8 + 1
+argDF <- rbind(data.frame(itergform = c(0,1,0,1), matched = c(0,1,0,1), treatment = 1),
+                data.frame(itergform = c(0,1,0,1), matched = c(0,1,0,1), treatment = 0))
+itergform <- argDF$itergform[argID] # 1 for iterative g formula, 0 for non-iterative gformula
+matched <- argDF$matched[argID] # 1 for matched, 0 for complete
+treatment <- argDF$treatment[argID] # 1 for always treatment, 0 for never treatment
+
+myseed <- myseeds[dataID]
+
+load(sprintf('../Data_Bootstrap/Data_setup%d_replicate%d.rda', setup, dataID))
+print(dffull %>% group_by(t0) %>% summarise(mean(Y, na.rm = T)))
 
 time_name = 't0'
 id_name = 'id'
@@ -22,7 +45,7 @@ cov_mintimes <- rep(1, length(covnames) + 1)
 histvars <- c(covnames, intervention_name)
 histvals <- 1
 
-nboot <- 5  # Set number of bootstrap replicates
+nboot <- 100  # Set number of bootstrap replicates
 boot_results <- vector("list", nboot)
 pb <- txtProgressBar(min = 1, max = nboot + 1, style = 3) 
 
@@ -192,7 +215,6 @@ if(itergform == 1 & matched == 1){
   }
   time_end <- Sys.time()
 }
-
 
 saveRDS(list(boot_results = boot_results, 
              event_prev =  dffull %>% group_by(t0) %>% summarise(avg = mean(Y, na.rm = TRUE)) %>% pull(avg),

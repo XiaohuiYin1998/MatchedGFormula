@@ -677,12 +677,6 @@ gform_iter_match <- function(obs_data, K, J, Js = NULL,
   match_data <- obs_data[, if (any(!is.na(Count) & Count != 0)) .SD, by = get(id_name)]
   match_data <- match_data[rep(1:.N, ifelse(is.na(Count), 1, Count))]
   
-    for(k in 1:K){
-    if(sum(!is.na(match_data[match_data[[time_name]]== k-1, Count])) == 0){
-      match_data[["Count"]][match_data[[time_name]]== k-1] <- 1
-      match_data[["Weights"]][match_data[[time_name]]== k-1] <- 1
-    }
-  }
   rst <- lapply(1:K, function(k){
     gform_iter_match_inner(obs_data = match_data, K = k, 
                            time_name = time_name, id_name = id_name,

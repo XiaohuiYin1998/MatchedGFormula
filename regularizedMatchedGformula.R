@@ -104,12 +104,14 @@ fit_regularized_model <- function(pool, response_name, predictor_name,
                                y = cbind(1-y, y)[non_na_idx,], 
                                weights = ws[non_na_idx],
                                family = 'binomial', 
+                               alpha = 0, #enet
                                foldid = foldid[non_na_idx])
     }else{
       mod <- glmnet::cv.glmnet(x = x[non_na_idx, , drop = FALSE], 
                                y = y[non_na_idx], 
                                weights = ws[non_na_idx],
                                family = 'binomial', 
+                               alpha = 0, #enet
                                foldid = foldid[non_na_idx])
     }
     
@@ -130,11 +132,10 @@ fit_regularized_model <- function(pool, response_name, predictor_name,
 }
 
 predict_regularized_model <- function(model, newx, predictor_name, 
-                                      type = 'response', s = 'lambda.min') {
+                                      type = 'response', s = 'lambda.min'){
   newx <- as.matrix(newx[, ..predictor_name])
   predict(model, newx = newx, type = type, s = s)
 }
-
 
 gform_noniter_complete <- function(obs_data, K, 
                                    time_name = 't0', id_name = 'id', 

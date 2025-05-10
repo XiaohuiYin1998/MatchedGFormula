@@ -51,19 +51,51 @@ summary_all <- summary_each_simu %>%
             Aysm_cover_rate = mean(Aysm_cover))
   
   
+# summary_each_simu$iterative <- factor(summary_each_simu$iterative, levels = 1:0)
+# summary_each_simu$matched <- factor(summary_each_simu$matched, levels = 1:0)
 summary_each_simu %>% 
   ggplot(mapping = aes(x = factor(Time), y = Boots_mean, fill = factor(treatment))) + 
   geom_boxplot(position = position_dodge(width = 0.8)) +
+  geom_point(rst_true, 
+             mapping = aes(x = factor(Time), y = TrueRisk), 
+             position = position_dodge(width = 0.8), 
+             color = 'red', shape = 8, size = 1) + 
   facet_grid(
     rows = vars(iterative),
     cols = vars(matched),
     labeller = labeller(
-      iterative = c(`0` = 'Non-iterative', `1` = 'Iterative'),
-      matched = c(`0` = 'Complete', `1` = 'Match')
+      iterative = c(`1` = 'Iterative', `0` = 'Non-iterative'),
+      matched = c(`1` = 'Matched', `0` = 'Complete')
     )
   ) + 
   labs(x = 'Time', y = 'Boots_mean', fill = 'Treatment') +
   theme_minimal() + 
   theme(legend.position = 'bottom')
+
+
+
+
+summary_each_simu %>%
+  ggplot(aes(x = factor(Time), y = Boots_mean, fill = factor(treatment))) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  geom_point(
+    data = rst_true,
+    mapping = aes(x = factor(Time), y = TrueRisk),
+    position = position_dodge(width = 0.8),
+    color = 'red', shape = 8, size = 1
+  ) +
+  facet_grid(
+    rows = vars(treatment),
+    cols = vars(iterative, matched),
+    scales = 'free_y',
+    labeller = labeller(
+      iterative = c(`1` = 'Iterative', `0` = 'Non-iterative'),
+      matched = c(`1` = '(matched)', `0` = '(complete)')
+    )
+  ) +
+  labs(x = 'Time', y = 'Boots_mean', fill = 'Treatment') +
+  theme_minimal() +
+  theme(legend.position = 'bottom')
+
 
   
