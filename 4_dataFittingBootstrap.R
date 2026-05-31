@@ -1,224 +1,150 @@
 library(dplyr)
 library(tidyr)
 source('updatedMatchedGformula.R')
-n <- 30000
-K <- 6
-setup <- 7
+
+n     <- as.integer(Sys.getenv('GFORM_N',     unset = '30000'))
+K     <- as.integer(Sys.getenv('GFORM_K',     unset = '6'))
+setup <- as.integer(Sys.getenv('GFORM_SETUP', unset = '5'))
+J     <- as.integer(Sys.getenv('GFORM_J',     unset = '5'))
+nboot <- as.integer(Sys.getenv('GFORM_NBOOT', unset = '100'))
+
 source('0_regularizedParameterSetup.R')
 
 set.seed(2024)
 myseeds <- sample(1:1e5, size = 500)
+
 simuID <- Sys.getenv("SLURM_ARRAY_TASK_ID")
 simuID <- as.integer(simuID)
-if(is.na(simuID)){simuID <- 1}
+if (is.na(simuID)) simuID <- 1
 
-dataID <- floor((simuID -1)/ 8) + 1
-argID <- (simuID - 1) %% 8 + 1
-argDF <- rbind(data.frame(itergform = c(0,1,0,1), matched = c(0,1,0,1), treatment = 1),
-                data.frame(itergform = c(0,1,0,1), matched = c(0,1,0,1), treatment = 0))
-itergform <- argDF$itergform[argID] # 1 for iterative g formula, 0 for non-iterative gformula
-matched <- argDF$matched[argID] # 1 for matched, 0 for complete
-treatment <- argDF$treatment[argID] # 1 for always treatment, 0 for never treatment
+dataID    <- floor((simuID - 1) / 8) + 1
+argID     <- (simuID - 1) %% 8 + 1
+argDF     <- rbind(data.frame(itergform = c(0, 1, 0, 1),
+                              matched   = c(0, 0, 1, 1),
+                              treatment = 1),
+                   data.frame(itergform = c(0, 1, 0, 1),
+                              matched   = c(0, 0, 1, 1),
+                              treatment = 0))
+itergform <- argDF$itergform[argID]
+matched   <- argDF$matched[argID]
+treatment <- argDF$treatment[argID]
 
 myseed <- myseeds[dataID]
 
-load(sprintf('../Data_Bootstrap/Data_setup%d_replicate%d.rda', setup, dataID))
-print(dffull %>% group_by(t0) %>% summarise(mean(Y, na.rm = T)))
+data_dir <- 'data'
+out_dir  <- 'results_bootstrap'
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
-time_name = 't0'
-id_name = 'id'
+load(sprintf('%s/Data_setup%d_replicate%d.rda', data_dir, setup, dataID))
+print(dffull %>% group_by(t0) %>% summarise(mean(Y, na.rm = TRUE)))
+
+time_name     <- 't0'
+id_name       <- 'id'
 base_covnames <- c('Gender', 'Age', 'Race', 'Marital')
 
-ymodel <- as.formula(sprintf('Y~%s', paste0(c(base_covnames, covnames, intervention_name), collapse = '+')))
-censor_model <- as.formula(sprintf('C~%s', paste0(c(covnames, intervention_name), collapse = '+')))
+ymodel        <- as.formula(sprintf('Y~%s',
+                                    paste0(c(base_covnames, covnames, intervention_name),
+                                           collapse = '+')))
+censor_model  <- as.formula(sprintf('C~%s',
+                                    paste0(c(covnames, intervention_name),
+                                           collapse = '+')))
 
 covtypes <- rep('binary', length(covnames) + 1)
-covmodels <- lapply(seq(covnames), function(j){
-  as.formula(sprintf('%s~%s', c(covnames, intervention_name)[j], 
-                     paste0(paste0('lag1_', c(covnames, intervention_name)[-j]), collapse = '+')))
+covmodels <- lapply(seq(covnames), function(j) {
+  as.formula(sprintf('%s~%s', c(covnames, intervention_name)[j],
+                     paste0(paste0('lag1_', c(covnames, intervention_name)[-j]),
+                            collapse = '+')))
 })
-covmodels[['A']] <- as.formula(sprintf('%s~%s', 
+covmodels[['A']] <- as.formula(sprintf('%s~%s',
                                        intervention_name,
-                                       paste0(paste0('lag1_',c(intervention_name, covnames)), collapse = '+')))
+                                       paste0(paste0('lag1_',
+                                                     c(intervention_name, covnames)),
+                                              collapse = '+')))
 
 cov_mintimes <- rep(1, length(covnames) + 1)
-histvars <- c(covnames, intervention_name)
-histvals <- 1
+histvars     <- c(covnames, intervention_name)
+histvals     <- 1
 
-nboot <- 100  # Set number of bootstrap replicates
+resample_ids <- function(dffull, seed_b) {
+  set.seed(seed_b)
+  sampled_ids <- sample(unique(dffull$id), size = length(unique(dffull$id)),
+                        replace = TRUE)
+  boot_id_map <- tibble(old_id = sampled_ids, new_id = seq_along(sampled_ids))
+  dfboot <- boot_id_map %>%
+    left_join(dffull, by = c("old_id" = "id"), relationship = "many-to-many") %>%
+    mutate(id = new_id) %>%
+    select(-old_id, -new_id)
+  as.data.table(dfboot)
+}
+
 boot_results <- vector("list", nboot)
-pb <- txtProgressBar(min = 1, max = nboot + 1, style = 3) 
+pb <- txtProgressBar(min = 1, max = nboot + 1, style = 3)
 
-if(itergform == 0 & matched == 0){
-  time_start <- Sys.time()
-  for (b in 1:nboot) {
-    
-    setTxtProgressBar(pb, b) 
-    
-    seed_b <- myseed + b
-    set.seed(seed_b)  
-    
-    sampled_ids <- sample(unique(dffull$id), size = length(unique(dffull$id)), replace = TRUE)
-    
-    boot_id_map <- tibble(
-      old_id = sampled_ids,
-      new_id = seq_along(sampled_ids)
-    )
-    dfboot <- boot_id_map %>%
-      left_join(dffull, by = c("old_id" = "id"), relationship = "many-to-many") %>%
-      mutate(id = new_id) %>%
-      select(-old_id, -new_id)
-    
-    dfboot <- as.data.table(dfboot)
-    
+time_start <- Sys.time()
+for (b in 1:nboot) {
+  setTxtProgressBar(pb, b)
+
+  seed_b <- myseed + b
+  dfboot <- resample_ids(dffull, seed_b)
+
+  if (itergform == 0 && matched == 0) {
     rst <- gform_noniter_complete(dfboot, K = K, time_name = time_name, id_name = id_name,
                                   outcome_name = outcome_name, ymodel = ymodel,
                                   outcome_mintime = 0, censor_name = censor_name,
                                   censor_model = censor_model, censor_mintime = 0,
-                                  intervention_name = intervention_name, intervention = rep(treatment, K),
-                                  covnames = covnames, covtypes = covtypes, covmodels = covmodels,
-                                  base_covnames = base_covnames, cov_mintimes = cov_mintimes,
-                                  histvars = histvars, histvals = histvals, seed = seed_b)
-    
-    boot_results[[b]] <- rst
-    
-    
-    setTxtProgressBar(pb, b); 
-    cat(sprintf("Iterative %d; Matched; %d; Treatment %d; Replicate %3d finished at %s\n", 
-                itergform, matched, treatment, b, Sys.time()))
-  }
-  time_end <- Sys.time()
-}
-if(itergform == 0 & matched == 1){
-  time_start <- Sys.time()
-  for (b in 1:nboot) {
-    
-    setTxtProgressBar(pb, b) 
-    
-    seed_b <- myseed + b
-    set.seed(seed_b)  
-    
-    sampled_ids <- sample(unique(dffull$id), size = length(unique(dffull$id)), replace = TRUE)
-    
-    boot_id_map <- tibble(
-      old_id = sampled_ids,
-      new_id = seq_along(sampled_ids)
-    )
-    dfboot <- boot_id_map %>%
-      left_join(dffull, by = c("old_id" = "id"), relationship = "many-to-many") %>%
-      mutate(id = new_id) %>%
-      select(-old_id, -new_id)
-    
-    dfboot <- as.data.table(dfboot)
-    
-    rst <- gform_noniter_match(dfboot, K = K, J = 5,
+                                  intervention_name = intervention_name,
+                                  intervention = rep(treatment, K),
+                                  covnames = covnames, covtypes = covtypes,
+                                  covmodels = covmodels,
+                                  base_covnames = base_covnames,
+                                  cov_mintimes = cov_mintimes,
+                                  histvars = histvars, histvals = histvals,
+                                  seed = seed_b)
+  } else if (itergform == 0 && matched == 1) {
+    rst <- gform_noniter_match(dfboot, K = K, J = J,
                                outcome_name = outcome_name, ymodel = ymodel,
-                               outcome_mintime = 0, censor_name = censor_name, 
-                               censor_model = censor_model, censor_mintime = 0, 
+                               outcome_mintime = 0, censor_name = censor_name,
+                               censor_model = censor_model, censor_mintime = 0,
                                intervention_name = intervention_name,
                                intervention = rep(treatment, K),
-                               covnames = covnames, covtypes = covtypes, covmodels = covmodels, 
-                               base_covnames = base_covnames, cov_mintimes = cov_mintimes,
+                               covnames = covnames, covtypes = covtypes,
+                               covmodels = covmodels,
+                               base_covnames = base_covnames,
+                               cov_mintimes = cov_mintimes,
                                histvars = histvars, histvals = histvals,
                                seed = seed_b)
-    
-    boot_results[[b]] <- rst
-    
-    
-    setTxtProgressBar(pb, b); 
-    cat(sprintf("Iterative %d; Matched; %d; Treatment %d; Replicate %3d finished at %s\n", 
-                itergform, matched, treatment, b, Sys.time()))
-  }
-  time_end <- Sys.time()
-}
-if(itergform == 1 & matched == 0){
-  time_start <- Sys.time()
-  for (b in 1:nboot) {
-    
-    setTxtProgressBar(pb, b) 
-    
-    seed_b <- myseed + b
-    set.seed(seed_b)  
-    
-    sampled_ids <- sample(unique(dffull$id), size = length(unique(dffull$id)), replace = TRUE)
-    
-    boot_id_map <- tibble(
-      old_id = sampled_ids,
-      new_id = seq_along(sampled_ids)
-    )
-    dfboot <- boot_id_map %>%
-      left_join(dffull, by = c("old_id" = "id"), relationship = "many-to-many") %>%
-      mutate(id = new_id) %>%
-      select(-old_id, -new_id)
-    
-    dfboot <- as.data.table(dfboot)
-    
-    rst <- gform_iter_complete(dfboot, K = K, 
-                               id_name = 'id',
+  } else if (itergform == 1 && matched == 0) {
+    rst <- gform_iter_complete(dfboot, K = K, id_name = 'id',
                                outcome_name = outcome_name, ymodel = ymodel,
-                               outcome_mintime = 0, 
+                               outcome_mintime = 0,
                                intervention_name = intervention_name,
                                intervention = rep(treatment, K),
                                cov_mintimes = cov_mintimes,
-                               histvars = histvars, 
-                               histvals = histvals,
+                               histvars = histvars, histvals = histvals,
                                seed = seed_b)
-    
-    boot_results[[b]] <- rst
-    
-    
-    setTxtProgressBar(pb, b); 
-    cat(sprintf("Iterative %d; Matched; %d; Treatment %d; Replicate %3d finished at %s\n", 
-                itergform, matched, treatment, b, Sys.time()))
-  }
-  time_end <- Sys.time()
-}
-if(itergform == 1 & matched == 1){
-  time_start <- Sys.time()
-  for (b in 1:nboot) {
-    
-    setTxtProgressBar(pb, b) 
-    
-    seed_b <- myseed + b
-    set.seed(seed_b)  
-    
-    sampled_ids <- sample(unique(dffull$id), size = length(unique(dffull$id)), replace = TRUE)
-    
-    boot_id_map <- tibble(
-      old_id = sampled_ids,
-      new_id = seq_along(sampled_ids)
-    )
-    dfboot <- boot_id_map %>%
-      left_join(dffull, by = c("old_id" = "id"), relationship = "many-to-many") %>%
-      mutate(id = new_id) %>%
-      select(-old_id, -new_id)
-    
-    
-    dfboot <- as.data.table(dfboot)
-    
-    rst <- gform_iter_match(dfboot, K = K, J = 5,
+  } else {
+    rst <- gform_iter_match(dfboot, K = K, J = J,
                             outcome_name = outcome_name, ymodel = ymodel,
-                            outcome_mintime = 0, 
+                            outcome_mintime = 0,
                             base_covnames = base_covnames,
                             intervention_name = intervention_name,
                             intervention = rep(treatment, K),
-                            histvars = histvars, 
-                            histvals = histvals,
+                            histvars = histvars, histvals = histvals,
                             seed = seed_b)
-    
-    boot_results[[b]] <- rst
-    
-    
-    setTxtProgressBar(pb, b); 
-    cat(sprintf("Iterative %d; Matched; %d; Treatment %d; Replicate %3d finished at %s\n", 
-                itergform, matched, treatment, b, Sys.time()))
   }
-  time_end <- Sys.time()
-}
 
-saveRDS(list(boot_results = boot_results, 
-             event_prev =  dffull %>% group_by(t0) %>% summarise(avg = mean(Y, na.rm = TRUE)) %>% pull(avg),
-             censor_prev = dffull %>% group_by(t0) %>% summarise(avg = mean(C, na.rm = TRUE)) %>% pull(avg),
-             time = time_end - time_start), 
-        file = sprintf('../Results_Updated/n_%d_setup%d_iter%d_matched%d_treat%d_simu%d.RDS', 
-                       n, setup, itergform, matched, treatment, dataID))
+  boot_results[[b]] <- rst
+  cat(sprintf("Iter %d; Matched %d; Treat %d; Replicate %3d finished at %s\n",
+              itergform, matched, treatment, b, Sys.time()))
+}
+time_end <- Sys.time()
+
+saveRDS(list(boot_results = boot_results,
+             event_prev   = dffull %>% group_by(t0) %>%
+               summarise(avg = mean(Y, na.rm = TRUE)) %>% pull(avg),
+             censor_prev  = dffull %>% group_by(t0) %>%
+               summarise(avg = mean(C, na.rm = TRUE)) %>% pull(avg),
+             J            = J,
+             time         = time_end - time_start),
+        file = sprintf('%s/n_%d_setup%d_J%d_iter%d_matched%d_treat%d_simu%d.RDS',
+                       out_dir, n, setup, J, itergform, matched, treatment, dataID))

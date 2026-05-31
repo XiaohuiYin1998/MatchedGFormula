@@ -1,0 +1,19 @@
+# R session files
+.Rhistory
+.RData
+.Rproj.user/
+.Rapp.history
+
+# Generated output
+data/
+results_bootstrap/
+results_bootstrap_single_setup*/
+results_regularized/
+Boots_Results/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
